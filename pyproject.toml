@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Tode"
+authors = [
+    { name = "Ismael Dios Miguez", email = "idaxdm@gmail.com" }
+]
+
+version = "0.0.1"
+
+[project.scripts]
+todepy = "Tode.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
