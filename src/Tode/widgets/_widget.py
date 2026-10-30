@@ -12,6 +12,7 @@ class Widget(Bindable):
     def __init__(self, app: Tode) -> None:
         super().__init__()
         self.terminal = app.terminal
+        self.is_active = False
 
     def render(self):
         ...
