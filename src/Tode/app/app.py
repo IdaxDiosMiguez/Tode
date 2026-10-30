@@ -1,9 +1,13 @@
 from typing import Generator
 
+from pathlib import Path
+
 from Tode.core import Bindable
 
 from Tode.drivers._driver import Driver
 from Tode.drivers import LinuxDriver
+
+from Tode.buffer import PieceTable
 
 from Tode.widgets._widget import Widget
 from Tode.widgets import Editor
@@ -15,13 +19,15 @@ from Tode.utils import Color
 
 class Tode(Bindable):
 
-    def __init__(self) -> None:
+    def __init__(self, path: Path) -> None:
         super().__init__()
 
-        self.terminal = self._build_driver()
+        self.path = path
+
         self.is_running = True
         self._input = ""
 
+        self.terminal = self._build_driver()
         self.widgets = list(self.get_widgets())
 
         self.bind(Keybind("CTRL+X"), self._stop)
@@ -43,7 +49,13 @@ class Tode(Bindable):
         self.is_running = False
 
     def get_widgets(self) -> Generator[Widget]:
-        editor = Editor(self)
+        editor = Editor(
+            app=self,
+            buffer=PieceTable(
+                self.path
+            )
+        )
+
         editor.set_background_color(Color("#292d34"))
 
         yield editor

@@ -1,9 +1,14 @@
-from typing import TypeAlias, Literal
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from Tode.app import Tode
+    from Tode.buffer._buffer import Buffer
+
 from enum import Enum
 
-from Tode.widgets._widget import Widget
-
 from .cursor import Cursor
+
+from Tode.widgets._widget import Widget
 
 from Tode.utils import ANSI
 from Tode.utils import Color
@@ -18,14 +23,15 @@ class Direction(Enum):
 
 class Editor(Widget):
 
-    def __init__(self, app):
+    def __init__(self, app: Tode, buffer: Buffer):
         super().__init__(app=app)
 
         self.to_draw = True
         self.is_active = True
 
-        self.cursor = Cursor(1, 1)
+        self.buffer = buffer
         self._width, self._height = self.terminal.get_terminal_size()
+        self.cursor = Cursor(1, 1)
 
         self.background_color = Color("#343434").to_ansi()
 
