@@ -7,7 +7,12 @@ class ANSI(StrEnum):
 
     CLEAR            = f"{ESC}[2J"
     CLEAR_BACKGROUND = f"{ESC}[49m"
-    CLEAR_FOREGROUND = F"{ESC}[39m"
+    CLEAR_FOREGROUND = f"{ESC}[39m"
+
+    BOLD_FONT        = f"{ESC}[1m"
+    UNSET_BOLD_FONT  = f"{ESC}[22m"
+
+    ERASE_LINE       = f"{ESC}[K"
 
     ARROW_UP         = f"{ESC}[A"
     ARROW_DOWN       = f"{ESC}[B"

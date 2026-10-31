@@ -56,8 +56,6 @@ class Tode(Bindable):
             )
         )
 
-        editor.set_background_color(Color("#292d34"))
-
         yield editor
 
     def run(self) -> None:
