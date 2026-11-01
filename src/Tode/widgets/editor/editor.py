@@ -11,6 +11,7 @@ from .cursor import Cursor
 from Tode.widgets._widget import Widget
 
 from Tode.utils import ANSI
+from Tode.utils import KEY
 from Tode.utils import Color
 
 
@@ -37,35 +38,90 @@ class Editor(Widget):
         self.background_color = Color("#292d34").to_ansi()
         self.line_number_color = Color("#7d956d").to_ansi(background=False)
 
+        self._setup_keybinds()
+
+    def _setup_keybinds(self):
+        # Arrow binds
         self.bind(ANSI.ARROW_UP,    self._move, Direction.UP)
         self.bind(ANSI.ARROW_DOWN,  self._move, Direction.DOWN)
         self.bind(ANSI.ARROW_LEFT,  self._move, Direction.LEFT)
         self.bind(ANSI.ARROW_RIGHT, self._move, Direction.RIGHT)
 
+        # Char/Enter/Backspace
+        self.bind(KEY.CHAR,         self.insert_char)
+        self.bind(KEY.BACKSPACE,    self._delete_char)
+
     def _move(self, direction: Direction):
-        buffer_length = len(self.buffer.get_lines())
+        buffer_lines = self.buffer.get_lines()
+        buffer_length = len(buffer_lines)
+
+        if buffer_length == 0:
+            self.cursor.row = 1
+            self.cursor.col = 1
+            self.to_draw = True
+            return
 
         match direction:
             case Direction.UP:
-                self.cursor.row = max(1, self.cursor.row - 1)
+                if self.cursor.row > 1:
+                    self.cursor.row -= 1
+                    if (self.cursor.row - 1) < self.offset:
+                        self.offset = max(0, self.offset - 1)
 
             case Direction.DOWN:
                 if self.cursor.row < buffer_length:
                     self.cursor.row += 1
-
                     if self.cursor.row > self.offset + self._height:
                         self.offset += 1
 
             case Direction.LEFT:
-                self.cursor.col = max(1, self.cursor.col - 1)
+                self.cursor.col -= 1
 
             case Direction.RIGHT:
-                self.cursor.col = min(self._width, self.cursor.col + 1)
+                self.cursor.col += 1
+
+        current_line = buffer_lines[self.cursor.row - 1]
+
+        self.cursor.row = max(1, min(self.cursor.row, buffer_length))
+        self.cursor.col = max(1, min(self.cursor.col, max(1, len(current_line) + 1)))
+
+        self.to_draw = True
+
+    def insert_char(self, char: str) -> None:
+        offset = self.buffer.get_offset(self.cursor)
+        self.buffer.insert(offset, char)
+        self.cursor.col += 1
+
+        self.to_draw = True
+
+    def _delete_char(self):
+
+        if (self.cursor.row == 1) and (self.cursor.col == 1):
+            return
+
+        offset = self.buffer.get_offset(self.cursor)
+
+        if offset <= 0:
+            return
+
+        buffer_lines = self.buffer.get_lines()
+
+        if self.cursor.col > 1:
+            self.buffer.delete(offset - 1, 1)
+            self.cursor.col -= 1
+
+        elif self.cursor.row > 1:
+            prev_row_idx = self.cursor.row - 2
+            prev_line_len = len(buffer_lines[prev_row_idx])
+
+            self.buffer.delete(offset - 1, 1)
+
+            self.cursor.row -= 1
+            self.cursor.col = prev_line_len + 1
 
         self.to_draw = True
 
     def _format_line_number(self, row: int, padding: int, is_current: bool) -> str:
-
         space_start = "" if is_current else " "
         space_after = " " if is_current else ""
 
@@ -87,10 +143,10 @@ class Editor(Widget):
 
     def _check_terminal_resize(self):
         width, height = self.terminal.get_terminal_size()
-        self._width = width
-        self._height = height
 
         if (self._width != width) or (self._height != height):
+            self._width = width
+            self._height = height
             self.to_draw = True
 
     def render(self):
