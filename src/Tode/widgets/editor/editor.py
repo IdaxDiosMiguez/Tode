@@ -30,31 +30,40 @@ class Editor(Widget):
         self.is_active = True
 
         self.buffer = buffer
-        self._width, self._height = self.terminal.get_terminal_size()
         self.cursor = Cursor(1, 1)
-        self.viewport_offset = 0
+        self.offset = 0
+        self._width, self._height = self.terminal.get_terminal_size()
 
         self.background_color = Color("#292d34").to_ansi()
         self.line_number_color = Color("#7d956d").to_ansi(background=False)
 
-        self.bind(ANSI.ARROW_UP,   self._move, Direction.UP)
-        self.bind(ANSI.ARROW_DOWN, self._move, Direction.DOWN)
-        self.bind(ANSI.ARROW_LEFT, self._move, Direction.LEFT)
+        self.bind(ANSI.ARROW_UP,    self._move, Direction.UP)
+        self.bind(ANSI.ARROW_DOWN,  self._move, Direction.DOWN)
+        self.bind(ANSI.ARROW_LEFT,  self._move, Direction.LEFT)
         self.bind(ANSI.ARROW_RIGHT, self._move, Direction.RIGHT)
 
     def _move(self, direction: Direction):
+        buffer_length = len(self.buffer.get_lines())
+
         match direction:
             case Direction.UP:
                 self.cursor.row = max(1, self.cursor.row - 1)
 
             case Direction.DOWN:
-                self.cursor.row = min(self._height, self.cursor.row + 1)
+
+                if self.cursor.row < buffer_length:
+                    self.cursor.row += 1
+
+                    if self.cursor.row > self.offset + self._height:
+                        self.offset += 1
 
             case Direction.LEFT:
                 self.cursor.col = max(1, self.cursor.col - 1)
 
             case Direction.RIGHT:
                 self.cursor.col = min(self._width, self.cursor.col + 1)
+
+        self.to_draw = True
 
     def _format_line_number(self, row: int, padding: int, is_current: bool) -> str:
 
@@ -79,7 +88,7 @@ class Editor(Widget):
 
     def render(self):
 
-        buffer_lines = self.buffer.get_lines()[ : self._height]
+        buffer_lines = self.buffer.get_lines()
         buffer_length = len(buffer_lines)
         line_num_padding = max(len(str(buffer_length)) + 1, 1)
 
@@ -87,12 +96,16 @@ class Editor(Widget):
             self.terminal.write(ANSI.HIDE_CURSOR)
             self.terminal.write(self.background_color)
 
-            for row, line in enumerate(buffer_lines, 1):
-                is_current = (row == self.cursor.row)
-                line_num = self.cursor.row if is_current else abs(row - self.cursor.row)
+            visible_lines = buffer_lines[self.offset : self.offset + self._height]
+
+            for idx, line in enumerate(visible_lines):
+                row = idx + 1
+                absolute_line_num = self.offset + row
+                is_current = (absolute_line_num == self.cursor.row)
+                line_num = self.cursor.row if is_current else abs(absolute_line_num - self.cursor.row)
 
                 number = self._format_line_number(line_num, line_num_padding, is_current)
-                line = self._format_buffer_line(row, line)
+                line = self._format_buffer_line(absolute_line_num, line)
 
                 self.terminal.move_to(1, row)
                 self.terminal.write(f"{number}{line}")
@@ -103,6 +116,8 @@ class Editor(Widget):
 
             self.terminal.write(ANSI.CLEAR_BACKGROUND)
             self.terminal.write(ANSI.SHOW_CURSOR)
+
+            self.to_draw = False
 
         self.terminal.move_to(
             self.cursor.col + line_num_padding + 3,
