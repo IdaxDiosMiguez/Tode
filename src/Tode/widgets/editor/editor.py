@@ -50,7 +50,6 @@ class Editor(Widget):
                 self.cursor.row = max(1, self.cursor.row - 1)
 
             case Direction.DOWN:
-
                 if self.cursor.row < buffer_length:
                     self.cursor.row += 1
 
@@ -86,31 +85,40 @@ class Editor(Widget):
             f"{ANSI.ERASE_LINE}"
         )
 
+    def _check_terminal_resize(self):
+        width, height = self.terminal.get_terminal_size()
+        self._width = width
+        self._height = height
+
+        if (self._width != width) or (self._height != height):
+            self.to_draw = True
+
     def render(self):
+        self._check_terminal_resize()
 
         buffer_lines = self.buffer.get_lines()
         buffer_length = len(buffer_lines)
         line_num_padding = max(len(str(buffer_length)) + 1, 1)
 
         if self.to_draw:
+            visible_lines = buffer_lines[self.offset : self.offset + self._height]
+
             self.terminal.write(ANSI.HIDE_CURSOR)
             self.terminal.write(self.background_color)
 
-            visible_lines = buffer_lines[self.offset : self.offset + self._height]
-
-            for idx, line in enumerate(visible_lines):
-                row = idx + 1
-                absolute_line_num = self.offset + row
-                is_current = (absolute_line_num == self.cursor.row)
-                line_num = self.cursor.row if is_current else abs(absolute_line_num - self.cursor.row)
+            for row, line in enumerate(visible_lines, 1):
+                abs_line_num = self.offset + row
+                is_current = (abs_line_num == self.cursor.row)
+                line_num = self.cursor.row if is_current else abs(abs_line_num - self.cursor.row)
 
                 number = self._format_line_number(line_num, line_num_padding, is_current)
-                line = self._format_buffer_line(absolute_line_num, line)
+                line = self._format_buffer_line(line_num, line)
 
                 self.terminal.move_to(1, row)
                 self.terminal.write(f"{number}{line}")
 
-            for row in range(buffer_length + 1, self._height + 1):
+            rendered_count = len(visible_lines)
+            for row in range(rendered_count + 1, self._height + 1):
                 self.terminal.move_to(1, row)
                 self.terminal.write(ANSI.ERASE_LINE)
 
@@ -121,5 +129,5 @@ class Editor(Widget):
 
         self.terminal.move_to(
             self.cursor.col + line_num_padding + 3,
-            self.cursor.row
+            self.cursor.row - self.offset
         )
