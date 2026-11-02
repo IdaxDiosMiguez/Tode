@@ -13,6 +13,7 @@ class ANSI(StrEnum):
     UNSET_BOLD_FONT  = f"{ESC}[22m"
 
     ERASE_LINE       = f"{ESC}[K"
+    ERASE_BOTTOM     = f"{ESC}[J"
 
     ARROW_UP         = f"{ESC}[A"
     ARROW_DOWN       = f"{ESC}[B"

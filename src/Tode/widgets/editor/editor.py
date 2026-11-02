@@ -4,22 +4,34 @@ if TYPE_CHECKING:
     from Tode.app import Tode
     from Tode.buffer._buffer import Buffer
 
-from enum import Enum
+from enum import Enum, auto
 
 from .cursor import Cursor
+from .viewport import Viewport
+from .gutter import Gutter
+from .status_bar import StatusBar
 
 from Tode.widgets._widget import Widget
 
 from Tode.utils import ANSI
 from Tode.utils import KEY
+from Tode.utils import Keybind
 from Tode.utils import Color
 
 
 class Direction(Enum):
-    UP    = 1
-    DOWN  = 2
-    LEFT  = 3
-    RIGHT = 4
+    UP    = auto()
+    DOWN  = auto()
+    LEFT  = auto()
+    RIGHT = auto()
+
+
+_DELTAS = {
+    Direction.UP:    (-1, 0),
+    Direction.DOWN:  (1, 0),
+    Direction.LEFT:  (0, -1),
+    Direction.RIGHT: (0, 1),
+}
 
 
 class Editor(Widget):
@@ -27,16 +39,19 @@ class Editor(Widget):
     def __init__(self, app: Tode, buffer: Buffer):
         super().__init__(app=app)
 
+        self.buffer = buffer
+
+        self.cursor     = Cursor(1, 1)
+        self.viewport   = Viewport(self.terminal, 1)
+        self.gutter     = Gutter()
+        self.status_bar = StatusBar()
+
         self.to_draw = True
         self.is_active = True
 
-        self.buffer = buffer
-        self.cursor = Cursor(1, 1)
-        self.offset = 0
-        self._width, self._height = self.terminal.get_terminal_size()
+        self.left = 24
 
-        self.background_color = Color("#292d34").to_ansi()
-        self.line_number_color = Color("#7d956d").to_ansi(background=False)
+        self.bg_color = Color("#292d34").to_ansi(background=True)
 
         self._setup_keybinds()
 
@@ -48,46 +63,34 @@ class Editor(Widget):
         self.bind(ANSI.ARROW_RIGHT, self._move, Direction.RIGHT)
 
         # Char/Enter/Backspace
-        self.bind(KEY.CHAR,         self.insert_char)
-        self.bind(KEY.BACKSPACE,    self._delete_char)
+        self.bind(KEY.CHAR,          self._insert_char)
+        self.bind(KEY.BACKSPACE,     self._delete_char)
+
+        self.bind(Keybind("CTRL+S"), self.buffer.save)
 
     def _move(self, direction: Direction):
-        buffer_lines = self.buffer.get_lines()
-        buffer_length = len(buffer_lines)
+        lines = self.buffer.get_lines()
+        old_row, old_offset = self.cursor.row, self.viewport.offset
 
-        if buffer_length == 0:
-            self.cursor.row = 1
-            self.cursor.col = 1
+        d_row, d_col = _DELTAS[direction]
+        row = max(1, min(self.cursor.row + d_row, max(1, len(lines))))
+        line = lines[row - 1] if lines else ""
+
+        self.cursor.row = row
+        self.cursor.col = max(1, min(self.cursor.col + d_col, len(line) + 1))
+
+        height = self.viewport.visible_height
+
+        if self.cursor.row - 1 < self.viewport.offset:
+            self.viewport.offset = self.cursor.row - 1
+
+        elif self.cursor.row > self.viewport.offset + height:
+            self.viewport.offset = self.cursor.row - height
+
+        if self.cursor.row != old_row or self.viewport.offset != old_offset:
             self.to_draw = True
-            return
 
-        match direction:
-            case Direction.UP:
-                if self.cursor.row > 1:
-                    self.cursor.row -= 1
-                    if (self.cursor.row - 1) < self.offset:
-                        self.offset = max(0, self.offset - 1)
-
-            case Direction.DOWN:
-                if self.cursor.row < buffer_length:
-                    self.cursor.row += 1
-                    if self.cursor.row > self.offset + self._height:
-                        self.offset += 1
-
-            case Direction.LEFT:
-                self.cursor.col -= 1
-
-            case Direction.RIGHT:
-                self.cursor.col += 1
-
-        current_line = buffer_lines[self.cursor.row - 1]
-
-        self.cursor.row = max(1, min(self.cursor.row, buffer_length))
-        self.cursor.col = max(1, min(self.cursor.col, max(1, len(current_line) + 1)))
-
-        self.to_draw = True
-
-    def insert_char(self, char: str) -> None:
+    def _insert_char(self, char: str) -> None:
         offset = self.buffer.get_offset(self.cursor)
         self.buffer.insert(offset, char)
         self.cursor.col += 1
@@ -121,69 +124,48 @@ class Editor(Widget):
 
         self.to_draw = True
 
-    def _format_line_number(self, row: int, padding: int, is_current: bool) -> str:
-        space_start = "" if is_current else " "
-        space_after = " " if is_current else ""
+    def _draw_lines(self, lines: list[str]):
+        visible = lines[self.viewport.offset : self.viewport.offset + self.viewport.visible_height]
 
-        return (
-            f"{space_start}"
-            f"{self.line_number_color}"
-            f"{ANSI.BOLD_FONT}"
-            f"{row:>{padding}}"
-            f"{ANSI.UNSET_BOLD_FONT}"
-            f"{ANSI.CLEAR_FOREGROUND}"
-            f"  {space_after}"
-        )
+        self.terminal.write(self.bg_color)
 
-    def _format_buffer_line(self, row: int, line) -> str:
-        return (
-            f"{line}"
-            f"{ANSI.ERASE_LINE}"
-        )
+        for row, line in enumerate(visible, 1):
+            abs_row = self.viewport.offset + row
+            is_current = abs_row == self.cursor.row
+            number = self.cursor.row if is_current else abs(abs_row - self.cursor.row)
 
-    def _check_terminal_resize(self):
-        width, height = self.terminal.get_terminal_size()
+            self.terminal.move_to(1 + self.left, row)
+            self.terminal.write(
+                f"{self.gutter.format(number, len(lines), is_current)}"
+                f"{line}{ANSI.ERASE_LINE}"
+            )
 
-        if (self._width != width) or (self._height != height):
-            self._width = width
-            self._height = height
-            self.to_draw = True
+        for row in range(len(visible) + 1, self.viewport.visible_height + 1):
+            self.terminal.move_to(1 + self.left, row)
+            self.terminal.write(f"🭰{ANSI.ERASE_LINE}")
+
+        self.terminal.write(ANSI.CLEAR_BACKGROUND)
+        self.to_draw = False
 
     def render(self):
-        self._check_terminal_resize()
+        if self.viewport.resize():
+            self.viewport.scroll_to(self.cursor.row)
+            self.to_draw = True
 
-        buffer_lines = self.buffer.get_lines()
-        buffer_length = len(buffer_lines)
-        line_num_padding = max(len(str(buffer_length)) + 1, 1)
+        lines = self.buffer.get_lines()
+
+        self.terminal.write(ANSI.HIDE_CURSOR)
 
         if self.to_draw:
-            visible_lines = buffer_lines[self.offset : self.offset + self._height]
+            self._draw_lines(lines)
 
-            self.terminal.write(ANSI.HIDE_CURSOR)
-            self.terminal.write(self.background_color)
+        self.terminal.move_to(1, self.viewport.visible_height + 1)
+        self.terminal.write(
+            self.status_bar.format(self.viewport.width, self.buffer, self.cursor)
+        )
 
-            for row, line in enumerate(visible_lines, 1):
-                abs_line_num = self.offset + row
-                is_current = (abs_line_num == self.cursor.row)
-                line_num = self.cursor.row if is_current else abs(abs_line_num - self.cursor.row)
-
-                number = self._format_line_number(line_num, line_num_padding, is_current)
-                line = self._format_buffer_line(line_num, line)
-
-                self.terminal.move_to(1, row)
-                self.terminal.write(f"{number}{line}")
-
-            rendered_count = len(visible_lines)
-            for row in range(rendered_count + 1, self._height + 1):
-                self.terminal.move_to(1, row)
-                self.terminal.write(ANSI.ERASE_LINE)
-
-            self.terminal.write(ANSI.CLEAR_BACKGROUND)
-            self.terminal.write(ANSI.SHOW_CURSOR)
-
-            self.to_draw = False
-
+        self.terminal.write(ANSI.SHOW_CURSOR)
         self.terminal.move_to(
-            self.cursor.col + line_num_padding + 3,
-            self.cursor.row - self.offset
+            self.cursor.col + self.left + self.gutter.width(len(lines)),
+            self.cursor.row - self.viewport.offset,
         )

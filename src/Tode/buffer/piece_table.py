@@ -19,10 +19,10 @@ class _Piece:
 class PieceTable(Buffer):
     def __init__(self, path: Path) -> None:
 
-        self.path = path
+        self._path = path
+        self._edited: bool = False
         self.original_text: str = self.path.read_text() if self.path.exists() else ""
         self.add_buffer: str = ""
-        self.edited: bool = False
 
         self._line_cache: list[str] | None = None
 
@@ -31,6 +31,14 @@ class PieceTable(Buffer):
             if self.original_text
             else []
         )
+
+    @property
+    def edited(self) -> bool:
+        return self._edited
+
+    @property
+    def path(self) -> Path:
+        return self._path
 
     def get_text(self) -> str:
         result = []
@@ -69,7 +77,7 @@ class PieceTable(Buffer):
         if not text:
             return
 
-        self.edited = True
+        self._edited = True
         self._line_cache = None
 
         add_start = len(self.add_buffer)
@@ -115,7 +123,7 @@ class PieceTable(Buffer):
         if length <= 0 or not self.pieces:
             return
 
-        self.edited = True
+        self._edited = True
         self._line_cache = None
 
         end_offset = offset + length
@@ -153,6 +161,6 @@ class PieceTable(Buffer):
 
         self.original_text = text
         self.add_buffer = ""
-        self.edited = False
+        self._edited = False
         self._line_cache = None
         self.pieces = [_Piece("original", 0, len(text))] if text else []

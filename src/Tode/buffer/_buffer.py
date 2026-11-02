@@ -1,12 +1,18 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from Tode.widgets.editor.cursor import Cursor
 
 from abc import ABC, abstractmethod
 
 
 class Buffer(ABC):
+
+    def __init__(self, path: Path) -> None:
+        self.path: Path
+        self.edited: bool
 
     @abstractmethod
     def get_text(self) -> str: ...
