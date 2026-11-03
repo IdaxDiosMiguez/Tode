@@ -17,6 +17,7 @@ class _Piece:
 
 
 class PieceTable(Buffer):
+
     def __init__(self, path: Path) -> None:
 
         self._path = path

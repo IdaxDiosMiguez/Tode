@@ -1,5 +1,7 @@
 from Tode.utils import ANSI, Color
 
+from functools import lru_cache
+
 
 class Gutter:
 
@@ -10,11 +12,12 @@ class Gutter:
     def _padding(line_count: int) -> int:
         return len(str(line_count)) + 1
 
+    @lru_cache(maxsize=1024)
     def width(self, line_count: int) -> int:
         return self._padding(line_count) + 4
 
     def format(self, number: int, line_count: int, is_current: bool) -> str:
-        lead = "🭰" if is_current else "🭰 "
+        lead = "▍" if is_current else "▍ "
         trail = "  " + (" " if is_current else "")
 
         return (

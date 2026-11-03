@@ -44,7 +44,7 @@ class Editor(Widget):
         self.cursor     = Cursor(1, 1)
         self.viewport   = Viewport(self.terminal, 1)
         self.gutter     = Gutter()
-        self.status_bar = StatusBar()
+        self.status_bar = StatusBar("MAIN", self.buffer.path.name)
 
         self.to_draw = True
         self.is_active = True
@@ -65,6 +65,7 @@ class Editor(Widget):
         # Char/Enter/Backspace
         self.bind(KEY.CHAR,          self._insert_char)
         self.bind(KEY.BACKSPACE,     self._delete_char)
+        self.bind(KEY.ENTER,         self._insert_newline)
 
         self.bind(Keybind("CTRL+S"), self.buffer.save)
 
@@ -94,6 +95,16 @@ class Editor(Widget):
         offset = self.buffer.get_offset(self.cursor)
         self.buffer.insert(offset, char)
         self.cursor.col += 1
+
+        self.to_draw = True
+
+    def _insert_newline(self) -> None:
+        offset = self.buffer.get_offset(self.cursor)
+        self.buffer.insert(offset, "\n")
+
+        self.cursor.row += 1
+        self.cursor.col = 1
+        self.viewport.scroll_to(self.cursor.row)
 
         self.to_draw = True
 
@@ -142,7 +153,7 @@ class Editor(Widget):
 
         for row in range(len(visible) + 1, self.viewport.visible_height + 1):
             self.terminal.move_to(1 + self.left, row)
-            self.terminal.write(f"🭰{ANSI.ERASE_LINE}")
+            self.terminal.write(f"▍{ANSI.ERASE_LINE}")
 
         self.terminal.write(ANSI.CLEAR_BACKGROUND)
         self.to_draw = False
@@ -159,9 +170,13 @@ class Editor(Widget):
         if self.to_draw:
             self._draw_lines(lines)
 
-        self.terminal.move_to(1, self.viewport.visible_height + 1)
+        self.terminal.move_to(1 + self.left, self.viewport.visible_height + 1)
         self.terminal.write(
-            self.status_bar.format(self.viewport.width, self.buffer, self.cursor)
+            self.status_bar.format(
+                self.viewport.width - self.left,
+                self.cursor,
+                self.buffer.edited
+            )
         )
 
         self.terminal.write(ANSI.SHOW_CURSOR)
