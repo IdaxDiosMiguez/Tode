@@ -30,7 +30,7 @@ class StatusBar:
         marker = "*" if is_edited else " "
 
         branch = f"{BOX.LEFT}  {self.branch_name}  {BOX.RIGHT}"
-        file = f"  {self.file_name} [{marker}] "
+        file = f"{BOX.LEFT} {self.file_name} [{marker}] "
         position = f"Ln {cursor.row}, Col {cursor.col} "
 
         gap = " " * max(0, width - len(branch) - len(file) - len(position))
@@ -43,7 +43,8 @@ class StatusBar:
 
         file = (
             f"{self.bg_file}"
-            f"{file}"
+            f"{self.fg_status}{BOX.LEFT}{ANSI.CLEAR_FOREGROUND}"
+            f" {self.file_name} [{marker}] "
             f"{ANSI.CLEAR_BACKGROUND}"
         )
 
