@@ -6,7 +6,6 @@ if TYPE_CHECKING:
 
 from enum import Enum, auto
 
-from .cursor import Cursor
 from .viewport import Viewport
 from .gutter import Gutter
 from .status_bar import StatusBar
@@ -16,6 +15,8 @@ from Tode.widgets._widget import Widget
 from Tode.utils import ANSI
 from Tode.utils import KEY
 from Tode.utils import Keybind
+from Tode.utils import Size
+from Tode.utils import Coord
 from Tode.utils import Color
 
 
@@ -36,12 +37,12 @@ _DELTAS = {
 
 class Editor(Widget):
 
-    def __init__(self, app: Tode, buffer: Buffer):
-        super().__init__(app=app)
+    def __init__(self, app: Tode, buffer: Buffer, position: Coord, size: Size | None = None):
+        super().__init__(app=app, size=size, position=position)
 
         self.buffer = buffer
 
-        self.cursor     = Cursor(1, 1)
+        self.cursor     = Coord(1, 1)
         self.viewport   = Viewport(self.terminal, 1)
         self.gutter     = Gutter()
         self.status_bar = StatusBar("MAIN", self.buffer.path.name)
@@ -49,9 +50,8 @@ class Editor(Widget):
         self.to_draw = True
         self.is_active = True
 
-        self.left = 24
-
-        self.bg_color = Color("#292d34").to_ansi(background=True)
+        self.bg_color = Color("#282828").to_ansi(background=True)
+        self.fg_color = Color("#e5e7eb").to_ansi(background=False)
 
         self._setup_keybinds()
 
@@ -145,14 +145,14 @@ class Editor(Widget):
             is_current = abs_row == self.cursor.row
             number = self.cursor.row if is_current else abs(abs_row - self.cursor.row)
 
-            self.terminal.move_to(1 + self.left, row)
+            self.terminal.move_to(1 + self.position.col, row)
             self.terminal.write(
                 f"{self.gutter.format(number, len(lines), is_current)}"
-                f"{line}{ANSI.ERASE_LINE}"
+                f"{self.fg_color}{line}{ANSI.ERASE_LINE}{ANSI.CLEAR_FOREGROUND}"
             )
 
         for row in range(len(visible) + 1, self.viewport.visible_height + 1):
-            self.terminal.move_to(1 + self.left, row)
+            self.terminal.move_to(1 + self.position.col, row)
             self.terminal.write(f"▍{ANSI.ERASE_LINE}")
 
         self.terminal.write(ANSI.CLEAR_BACKGROUND)
@@ -170,10 +170,10 @@ class Editor(Widget):
         if self.to_draw:
             self._draw_lines(lines)
 
-        self.terminal.move_to(1 + self.left, self.viewport.visible_height + 1)
+        self.terminal.move_to(1 + self.position.col, self.viewport.visible_height + 1)
         self.terminal.write(
             self.status_bar.format(
-                self.viewport.width - self.left,
+                self.viewport.width - self.position.col,
                 self.cursor,
                 self.buffer.edited
             )
@@ -181,6 +181,6 @@ class Editor(Widget):
 
         self.terminal.write(ANSI.SHOW_CURSOR)
         self.terminal.move_to(
-            self.cursor.col + self.left + self.gutter.width(len(lines)),
+            self.cursor.col + self.position.col + self.gutter.width(len(lines)),
             self.cursor.row - self.viewport.offset,
         )

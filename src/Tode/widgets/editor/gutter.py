@@ -6,7 +6,7 @@ from functools import lru_cache
 class Gutter:
 
     def __init__(self):
-        self.fg = Color("#7d956d").to_ansi(background=False)
+        self.fg = Color("#F5B683").to_ansi(background=False) # #7d956d
 
     @staticmethod
     def _padding(line_count: int) -> int:

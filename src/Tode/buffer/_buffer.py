@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from Tode.widgets.editor.cursor import Cursor
+    from Tode.utils import Coord
 
 from abc import ABC, abstractmethod
 
@@ -21,7 +21,7 @@ class Buffer(ABC):
     def get_lines(self) -> list[str]: ...
 
     @abstractmethod
-    def get_offset(self, position: Cursor) -> int: ...
+    def get_offset(self, position: Coord) -> int: ...
 
     @abstractmethod
     def insert(self, offset: int, text: str) -> None: ...

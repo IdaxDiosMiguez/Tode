@@ -8,11 +8,16 @@ from .keybind import Keybind
 
 from .color import Color
 
+from .utils import Coord
+from .utils import Size
+
 
 __all__ = [
     "ANSI",
     "KEY",
     "BOX",
     "Keybind",
-    "Color"
+    "Color",
+    "Coord",
+    "Size"
 ]

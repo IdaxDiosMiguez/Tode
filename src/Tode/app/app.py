@@ -11,10 +11,12 @@ from Tode.buffer import PieceTable
 
 from Tode.widgets._widget import Widget
 from Tode.widgets import Editor
+from Tode.widgets import Explorer
 
-from Tode.utils import Keybind
 from Tode.utils import ANSI
-from Tode.utils import Color
+from Tode.utils import Keybind
+from Tode.utils import Size
+from Tode.utils import Coord
 
 
 class Tode(Bindable):
@@ -53,9 +55,21 @@ class Tode(Bindable):
             app=self,
             buffer=PieceTable(
                 self.path
+            ),
+            position=Coord(25, 1),
+        )
+
+        explorer = Explorer(
+            app=self,
+            root=self.path,
+            position=Coord(1, 1),
+            size=Size(
+                editor.position.col,
+                -1
             )
         )
 
+        yield explorer
         yield editor
 
     def run(self) -> None:

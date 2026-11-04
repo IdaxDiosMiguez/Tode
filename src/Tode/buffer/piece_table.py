@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from Tode.widgets.editor.cursor import Cursor
+    from Tode.utils import Coord
 
 from ._buffer import Buffer
 
@@ -20,7 +20,7 @@ class PieceTable(Buffer):
 
     def __init__(self, path: Path) -> None:
 
-        self._path = path
+        self._path = path if not path.is_dir() else Path("untitled.txt")
         self._edited: bool = False
         self.original_text: str = self.path.read_text() if self.path.exists() else ""
         self.add_buffer: str = ""
@@ -58,13 +58,13 @@ class PieceTable(Buffer):
 
         return self._line_cache
 
-    def get_offset(self, cursor: Cursor) -> int:
+    def get_offset(self, position: Coord) -> int:
         if self._line_cache is None:
             self._line_cache = self.get_text().split("\n")
 
         lines = self._line_cache
-        row_idx = cursor.row - 1
-        col_idx = cursor.col - 1
+        row_idx = position.row - 1
+        col_idx = position.col - 1
 
         offset = sum(len(line) + 1 for line in lines[:row_idx])
 
