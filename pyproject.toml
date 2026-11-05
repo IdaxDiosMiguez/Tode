@@ -1,17 +1,30 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "Tode"
+version = "0.0.1"
+description = "A modern, highly customizable, terminal text editor. Familiar keybindings and future IDE-level features. Perfect for beginners!"
+readme = "README.md"
+requires-python = ">=3.10"
+
 authors = [
     { name = "Ismael Dios Miguez", email = "idaxdm@gmail.com" }
 ]
 
-version = "0.0.1"
+classifiers = [
+    "Environment :: Console",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+]
+
+
+[project.urls]
+Homepage = "https://github.com/IdaxDiosMiguez/Tode"
 
 [project.scripts]
-todepy = "Tode.__main__:main"
+tode = "Tode.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
