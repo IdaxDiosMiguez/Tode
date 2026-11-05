@@ -8,6 +8,7 @@ class ANSI(StrEnum):
     CLEAR            = f"{ESC}[2J"
     CLEAR_BACKGROUND = f"{ESC}[49m"
     CLEAR_FOREGROUND = f"{ESC}[39m"
+    CLEAR_STYLE      = f"{CLEAR_BACKGROUND}{CLEAR_FOREGROUND}"
 
     BOLD_FONT        = f"{ESC}[1m"
     UNSET_BOLD_FONT  = f"{ESC}[22m"
