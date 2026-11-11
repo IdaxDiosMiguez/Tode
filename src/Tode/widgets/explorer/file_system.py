@@ -31,25 +31,30 @@ class Tree:
         self.show_hidden = show_hidden
 
         self.rows: list[Entry] = [(self.root, 0)]
+
         self.expand(0)
+
+    @property
+    def size(self):
+        return len(self.rows)
 
     def _load(self, node: _Node) -> None:
         dirs, files = [], []
 
         try:
-            with os.scandir(node.path) as entrs:
-                for etry in entrs:
+            with os.scandir(node.path) as entries:
+                for entry in entries:
 
-                    if not self.show_hidden and etry.name.startswith("."):
+                    if not self.show_hidden and entry.name.startswith("."):
                         continue
 
                     try:
-                        is_dir = etry.is_dir(follow_symlinks=False)
+                        is_dir = entry.is_dir(follow_symlinks=False)
 
                     except OSError:
                         is_dir = False
 
-                    child = _Node(etry.path, etry.name, is_dir)
+                    child = _Node(entry.path, entry.name, is_dir)
 
                     (dirs if is_dir else files).append(child)
         except OSError:

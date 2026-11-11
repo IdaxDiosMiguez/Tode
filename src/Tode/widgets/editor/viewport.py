@@ -6,16 +6,21 @@ if TYPE_CHECKING:
 
 class Viewport:
 
-    def __init__(self, terminal: Driver, bottom: int = 1):
+    def __init__(self, terminal: Driver, bottom: int = 1, left: int = 0):
         self._terminal = terminal
 
         self.width, self.height = self._terminal.get_terminal_size()
         self.bottom = bottom
+        self.left = left
         self.offset = 0
 
     @property
     def visible_height(self) -> int:
         return max(1, self.height - self.bottom)
+
+    @property
+    def visible_width(self) -> int:
+        return max(1, self.width - self.left)
 
     def resize(self) -> bool:
         size = self._terminal.get_terminal_size()

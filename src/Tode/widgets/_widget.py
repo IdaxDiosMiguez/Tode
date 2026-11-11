@@ -18,6 +18,7 @@ class Widget(Bindable):
         self.terminal = app.terminal
         self.is_active = False
         self.to_draw = False
+        self.draw_once = True
 
         self.size = Size(1, 1) if (size is None) else size
         self.position = position

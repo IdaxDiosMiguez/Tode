@@ -43,11 +43,12 @@ class Editor(Widget):
         self.buffer = buffer
 
         self.cursor     = Coord(1, 1)
-        self.viewport   = Viewport(self.terminal, 1)
+        self.viewport   = Viewport(self.terminal, bottom=1, left=self.position.col)
         self.gutter     = Gutter()
         self.status_bar = StatusBar("MAIN", self.buffer.path.name)
 
         self.to_draw = True
+        self.draw_once = False
         self.is_active = True
 
         self.bg_color = Color("#282828").to_ansi(background=True)
@@ -145,10 +146,12 @@ class Editor(Widget):
             is_current = abs_row == self.cursor.row
             number = self.cursor.row if is_current else abs(abs_row - self.cursor.row)
 
+            gutter = self.gutter.format(number, len(lines), is_current)
+
             self.terminal.move_to(1 + self.position.col, row)
             self.terminal.write(
-                f"{self.gutter.format(number, len(lines), is_current)}"
-                f"{self.fg_color}{line}{ANSI.ERASE_LINE}{ANSI.CLEAR_FOREGROUND}"
+                f"{gutter}"
+                f"{self.fg_color}{line[:self.viewport.visible_width - self.gutter.len]}{ANSI.ERASE_LINE}{ANSI.CLEAR_FOREGROUND}"
             )
 
         for row in range(len(visible) + 1, self.viewport.visible_height + 1):

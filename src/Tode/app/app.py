@@ -1,4 +1,4 @@
-from typing import Generator
+from typing import Iterable
 
 from pathlib import Path
 
@@ -27,12 +27,15 @@ class Tode(Bindable):
         self.path = path
 
         self.is_running = True
+        self.cursor_on = True
         self._input = ""
 
         self.terminal = self._build_driver()
-        self.widgets = list(self.get_widgets())
+
+        self.set_widgets()
 
         self.bind(Keybind("CTRL+X"), self._stop)
+        self.bind(Keybind("CTRL+E"), self.toggle_explorer)
 
     def _build_driver(self) -> Driver:
         return LinuxDriver()
@@ -40,18 +43,18 @@ class Tode(Bindable):
     def _render(self):
         self.terminal.write(ANSI.START_SYNC)
 
-        for widget in self.widgets:
-            if widget.is_active:
+        for widget in (self.explorer, self.editor):
+            if widget.is_active or widget.draw_once:
                 widget.handle_input(self._input)
-            widget.render()
+                widget.render()
 
         self.terminal.write(ANSI.END_SYNC)
 
     def _stop(self) -> None:
         self.is_running = False
 
-    def get_widgets(self) -> Generator[Widget]:
-        editor = Editor(
+    def set_widgets(self) -> None:
+        self.editor = Editor(
             app=self,
             buffer=PieceTable(
                 self.path
@@ -59,18 +62,29 @@ class Tode(Bindable):
             position=Coord(25, 1),
         )
 
-        explorer = Explorer(
+        self.explorer = Explorer(
             app=self,
             root=self.path,
             position=Coord(1, 1),
             size=Size(
-                editor.position.col,
+                self.editor.position.col,
                 -1
             )
         )
 
-        yield explorer
-        yield editor
+    def toggle_explorer(self):
+        self.editor.is_active = not self.editor.is_active
+        self.explorer.is_active = not self.explorer.is_active
+        self.cursor_on = not self.cursor_on
+
+        self.explorer._draw_explorer()
+        self.editor.render()
+
+        if self.cursor_on:
+            self.terminal.write(ANSI.SHOW_CURSOR)
+
+        else:
+            self.terminal.write(ANSI.HIDE_CURSOR)
 
     def run(self) -> None:
         self.terminal.start_application_mode()
