@@ -43,9 +43,13 @@ class Tode(Bindable):
     def _render(self):
         self.terminal.write(ANSI.START_SYNC)
 
+        action_done = False
+
         for widget in (self.explorer, self.editor):
-            if widget.is_active or widget.draw_once:
-                widget.handle_input(self._input)
+            if (widget.is_active or widget.draw_once):
+                if not action_done:
+                    widget.handle_input(self._input)
+                    action_done = True
                 widget.render()
 
         self.terminal.write(ANSI.END_SYNC)

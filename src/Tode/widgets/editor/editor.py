@@ -19,6 +19,8 @@ from Tode.utils import Size
 from Tode.utils import Coord
 from Tode.utils import Color
 
+from . import actions
+
 
 class Direction(Enum):
     UP    = auto()
@@ -40,14 +42,14 @@ class Editor(Widget):
     def __init__(self, app: Tode, buffer: Buffer, position: Coord, size: Size | None = None):
         super().__init__(app=app, size=size, position=position)
 
-        self.buffer = buffer
+        self.buffer     = buffer
 
         self.cursor     = Coord(1, 1)
         self.viewport   = Viewport(self.terminal, bottom=1, left=self.position.col)
         self.gutter     = Gutter()
         self.status_bar = StatusBar("MAIN", self.buffer.path.name)
 
-        self.to_draw = True
+        self.to_draw   = True
         self.draw_once = False
         self.is_active = True
 
@@ -58,17 +60,25 @@ class Editor(Widget):
 
     def _setup_keybinds(self):
         # Arrow binds
-        self.bind(ANSI.ARROW_UP,    self._move, Direction.UP)
-        self.bind(ANSI.ARROW_DOWN,  self._move, Direction.DOWN)
-        self.bind(ANSI.ARROW_LEFT,  self._move, Direction.LEFT)
-        self.bind(ANSI.ARROW_RIGHT, self._move, Direction.RIGHT)
+        self.bind(ANSI.ARROW_UP,     self._move, Direction.UP)
+        self.bind(ANSI.ARROW_DOWN,   self._move, Direction.DOWN)
+        self.bind(ANSI.ARROW_LEFT,   self._move, Direction.LEFT)
+        self.bind(ANSI.ARROW_RIGHT,  self._move, Direction.RIGHT)
+
+        self.bind(ANSI.CTRL_UP,      self.move_block_up)
+        self.bind(ANSI.CTRL_DOWN,    self.move_block_down)
+        self.bind(ANSI.CTRL_LEFT,    self.move_word_left)
+        self.bind(ANSI.CTRL_RIGHT,   self.move_word_right)
 
         # Char/Enter/Backspace
         self.bind(KEY.CHAR,          self._insert_char)
         self.bind(KEY.BACKSPACE,     self._delete_char)
         self.bind(KEY.ENTER,         self._insert_newline)
 
-        self.bind(Keybind("CTRL+S"), self.buffer.save)
+        self.bind(Keybind("CTRL+S"), self._save_file)
+
+    def _save_file(self):
+        self.buffer.save()
 
     def _move(self, direction: Direction):
         lines = self.buffer.get_lines()
@@ -91,6 +101,47 @@ class Editor(Widget):
 
         if self.cursor.row != old_row or self.viewport.offset != old_offset:
             self.to_draw = True
+
+    def _move_to(self, row: int, col: int) -> None:
+        self.cursor.row = row
+        self.cursor.col = col
+        self.viewport.scroll_to(row)
+        self.to_draw = True
+
+    def move_word_right(self) -> None:
+        lines = self.buffer.get_lines()
+        row = self.cursor.row
+        line = lines[row - 1] if row <= len(lines) else ""
+        idx = self.cursor.col - 1
+
+        if idx >= len(line):
+            if row < len(lines):
+                self._move_to(row + 1, 1)
+            return
+
+        self._move_to(row, actions.next_word(line, idx) + 1)
+
+    def move_word_left(self) -> None:
+        lines = self.buffer.get_lines()
+        row = self.cursor.row
+        idx = self.cursor.col - 1
+
+        if idx <= 0:
+            if row > 1:
+                self._move_to(row - 1, len(lines[row - 2]) + 1)
+            return
+
+        self._move_to(row, actions.prev_word(lines[row - 1], idx) + 1)
+
+    def move_block_down(self) -> None:
+        lines = self.buffer.get_lines()
+        if lines:
+            self._move_to(actions.next_block(lines, self.cursor.row - 1) + 1, 1)
+
+    def move_block_up(self) -> None:
+        lines = self.buffer.get_lines()
+        if lines:
+            self._move_to(actions.prev_block(lines, self.cursor.row - 1) + 1, 1)
 
     def _insert_char(self, char: str) -> None:
         offset = self.buffer.get_offset(self.cursor)
@@ -159,7 +210,6 @@ class Editor(Widget):
             self.terminal.write(f"▍{ANSI.ERASE_LINE}")
 
         self.terminal.write(ANSI.CLEAR_BACKGROUND)
-        self.to_draw = False
 
     def render(self):
         if self.viewport.resize():
@@ -172,6 +222,7 @@ class Editor(Widget):
 
         if self.to_draw:
             self._draw_lines(lines)
+            self.to_draw = False
 
         self.terminal.move_to(1 + self.position.col, self.viewport.visible_height + 1)
         self.terminal.write(

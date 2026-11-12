@@ -87,19 +87,20 @@ class Explorer(Widget):
         self.root.toggle(self.selected)
         self._draw_explorer()
 
-    def _open_file(self, path):
+    def _open_file(self, path: Path):
 
-        new = Editor(
-            app=self.app,
-            buffer=PieceTable(path),
-            position=Coord(25, 1)
-        )
+        editor = self.app.editor
 
-        new.render()
-        new.draw_once = False
-        new.is_active = False
+        editor.buffer = PieceTable(path)
+        editor.status_bar.file_name = path.name
+        editor.status_bar
 
-        self.app.editor = new
+        editor.to_draw = True
+
+        editor.render()
+
+        editor.draw_once = False
+
         self.app.toggle_explorer()
 
     def _on_enter(self):
