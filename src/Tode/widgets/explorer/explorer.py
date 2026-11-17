@@ -94,6 +94,8 @@ class Explorer(Widget):
         editor.buffer = PieceTable(path)
         editor.status_bar.file_name = path.name
         editor.status_bar
+        editor.cursor.row = 1
+        editor.cursor.col = 1
 
         editor.to_draw = True
 
