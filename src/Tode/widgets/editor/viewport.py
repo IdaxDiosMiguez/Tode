@@ -2,14 +2,13 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from Tode.drivers._driver import Driver
+    from os import terminal_size
 
 
 class Viewport:
 
-    def __init__(self, terminal: Driver, bottom: int = 1, left: int = 0):
-        self._terminal = terminal
-
-        self.width, self.height = self._terminal.get_terminal_size()
+    def __init__(self, bottom: int = 1, left: int = 0):
+        self.width, self.height = 80, 24
         self.bottom = bottom
         self.left = left
         self.offset = 0
@@ -22,9 +21,7 @@ class Viewport:
     def visible_width(self) -> int:
         return max(1, self.width - self.left)
 
-    def resize(self) -> bool:
-        size = self._terminal.get_terminal_size()
-
+    def resize(self, size: terminal_size) -> bool:
         if size == (self.width, self.height):
             return False
 

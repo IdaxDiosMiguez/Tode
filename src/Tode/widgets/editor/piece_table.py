@@ -3,8 +3,6 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from Tode.utils import Coord
 
-from ._buffer import Buffer
-
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,7 +14,7 @@ class _Piece:
     length: int
 
 
-class PieceTable(Buffer):
+class PieceTable():
 
     def __init__(self, path: Path) -> None:
 

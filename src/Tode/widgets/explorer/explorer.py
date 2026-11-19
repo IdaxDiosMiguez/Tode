@@ -1,52 +1,39 @@
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from Tode.app import Tode
-
-from enum import Enum, auto
 from pathlib import Path
 
-from Tode.widgets._widget import Widget
-from Tode.widgets import Editor
-
-from Tode.buffer import PieceTable
+from Tode.widgets._widget import Widget, View
 
 from Tode.utils import ANSI
 from Tode.utils import KEY
-from Tode.utils import Size
-from Tode.utils import Coord
 from Tode.utils import Color
+from Tode.utils import Keybinds
 
 from Tode.utils.ascii import get_file_icon
 from Tode.utils.ascii import FOLDER
 
+from Tode.core import Focus
+from Tode.core import OpenFile, Resize
+
 from .file_system import Tree
-
-
-class Direction(Enum):
-    UP    = auto()
-    DOWN  = auto()
-    LEFT  = auto()
-    RIGHT = auto()
+from .actions import *
 
 
 class Explorer(Widget):
 
     TITLE = "Explorer"
 
-    def __init__(self, app: Tode, root: Path, position: Coord, size: Size | None = None) -> None:
-        super().__init__(app=app, size=size, position=position)
+    KEYBINDS: Keybinds = {
+        ANSI.ARROW_UP:   Select(-1),
+        ANSI.ARROW_DOWN: Select(+1),
+        KEY.ENTER:       Activate(),
+    }
 
-        root = root.expanduser().absolute()
-        self.app = app
-        self.root = Tree(root)
-        self.position = position
-
-        self.to_draw = True
-        self.draw_once = True
-
+    def __init__(self, root: Path) -> None:
+        self.tree = Tree(root.expanduser().absolute())
         self.selected = 0
-        self.padding = 4
+
+        self.focus = Focus.EXPLORER
+
+        self.width, self.height = 25, 24
         self.margin = 2
 
         self.bg_title = Color("#793838").to_ansi(background=True)
@@ -61,129 +48,62 @@ class Explorer(Widget):
         self.default_style  = f"{self.bg_explorer}{self.fg_explorer}"
         self.selected_style = f"{self.bg_selected}{self.fg_selected}"
 
-        self.title = (
-            f"{self.bg_title}"
-            f"{self.fg_title}"
-            f"{ANSI.BOLD_FONT}"
-            " " * self.size.width,
-            f"{self.TITLE:^{self.size.width}}"
-            f"{ANSI.UNSET_BOLD_FONT}"
-            f"{ANSI.CLEAR_FOREGROUND}",
-            " " * self.size.width,
-            f"{self.bg_explorer}"
-            "▔" * self.size.width,
-        )
+    # --- update -----------------------------------------------------------
 
-        self._setup_keybinds()
+    def update(self, action):
+        match action:
+            case Select(delta):
+                self.selected = max(0, min(self.selected + delta, self.tree.size - 1))
 
-    def _setup_keybinds(self):
-        # Arrow binds
-        self.bind(ANSI.ARROW_UP,    self._move, Direction.UP)
-        self.bind(ANSI.ARROW_DOWN,  self._move, Direction.DOWN)
+            case Activate():
+                path = Path(self.tree.rows[self.selected][0].path)
 
-        self.bind(KEY.ENTER,        self._on_enter)
+                if path.is_dir():
+                    self.tree.toggle(self.selected)
+                else:
+                    return OpenFile(path)
 
-    def _open_dir(self):
-        self.root.toggle(self.selected)
-        self._draw_explorer()
+            case Resize(size):
+                self.width, self.height = size
 
-    def _open_file(self, path: Path):
+        return None
 
-        editor = self.app.editor
+    # --- view -------------------------------------------------------------
 
-        editor.buffer = PieceTable(path)
-        editor.status_bar.file_name = path.name
-        editor.status_bar
-        editor.cursor.row = 1
-        editor.cursor.col = 1
+    def _title(self) -> list[str]:
+        w = self.width
 
-        editor.to_draw = True
+        return [
+            f"{self.bg_title}{self.fg_title}{ANSI.BOLD_FONT}{' ' * w}{ANSI.UNSET_BOLD_FONT}{ANSI.CLEAR_STYLE}",
+            f"{self.bg_title}{self.fg_title}{ANSI.BOLD_FONT}{self.TITLE:^{w}}{ANSI.UNSET_BOLD_FONT}{ANSI.CLEAR_STYLE}",
+            f"{self.bg_title}{' ' * w}{ANSI.CLEAR_STYLE}",
+            f"{self.bg_explorer}{'▔' * w}{ANSI.CLEAR_STYLE}",
+        ]
 
-        editor.render()
-
-        editor.draw_once = False
-
-        self.app.toggle_explorer()
-
-    def _on_enter(self):
-        path = Path(self.root.rows[self.selected][0].path)
-
-        if path.is_dir():
-            self._open_dir()
-
+    def _entry(self, node, depth: int, selected: bool) -> str:
+        if node.is_dir:
+            icon = f"{FOLDER.OPEN} " if node.expanded else f"{FOLDER.CLOSED} "
         else:
-            self._open_file(path)
+            icon = f"{get_file_icon(node.name[node.name.rfind('.'):])} "
 
+        style = self.selected_style if selected else self.default_style
 
-    def _move(self, direction: Direction):
+        name = node.name[: max(self.width - 4 - depth, 0)]
+        pad = " " * max(self.width - 4 - depth - len(name), 0)
 
-        tree_size = self.root.size
+        entry = f"{' ' * self.margin}{' ' * depth}{icon}{style}{name}{self.default_style}{pad}"
 
-        match direction:
-            case Direction.UP:
-                self.selected = max(self.selected - 1, 0)
+        return f"{self.default_style}{entry}{ANSI.CLEAR_STYLE}"
 
-            case Direction.DOWN:
-                self.selected = min(self.selected + 1, tree_size - 1)
+    def view(self, focused: bool) -> View:
+        rows = self._title()
 
-        self.to_draw = True
+        visible = max(self.height - len(rows), 0)
+        entries = self.tree.rows[:visible]
 
-    def _draw_title(self):
+        for idx, (node, depth) in enumerate(entries):
+            rows.append(self._entry(node, depth, focused and idx == self.selected))
 
-        for idx, line in enumerate(self.title):
+        rows += [f"{self.default_style}{' ' * self.width}{ANSI.CLEAR_STYLE}"] * (visible - len(entries))
 
-            self.terminal.move_to(
-                self.position.col,
-                self.position.row + idx
-            )
-
-            self.terminal.write(line)
-
-        self.draw_once = False
-
-    def _draw_explorer(self):
-        _width, height = self.terminal.get_terminal_size()
-
-        col = self.position.col
-        top = self.position.row + len(self.title)
-
-        visible = max(height - top + 1, 0)
-        empty_line = " " * self.size.width
-
-        rows = self.root.rows[:visible]
-
-        for row, (node, depth) in enumerate(rows):
-            self.terminal.move_to(col, top + row)
-
-            if node.is_dir:
-                icon = (f"{FOLDER.OPEN} " if node.expanded else f"{FOLDER.CLOSED} ")
-
-            else:
-                ext = node.name[node.name.rfind("."):]
-                icon = f"{get_file_icon(ext)} "
-
-            style = self.selected_style if (row == self.selected) and self.is_active else self.default_style
-
-            name = node.name[: max(self.size.width - 4 - depth, 0)]
-            pad = " " * max(self.size.width - 4 - depth - len(name), 0)
-
-            entry = f"{" " * self.margin}{" " * depth}{icon}{style}{name}{self.default_style}{pad}"
-
-            self.terminal.write(
-                f"{self.default_style}{entry}{ANSI.CLEAR_STYLE}"
-            )
-
-        for row in range(len(rows), visible):
-            self.terminal.move_to(col, top + row)
-            self.terminal.write(f"{self.default_style}{empty_line}{ANSI.CLEAR_STYLE}")
-
-        self.to_draw = False
-
-    def render(self):
-
-        if self.draw_once:
-            self._draw_title()
-            self._draw_explorer
-
-        if self.to_draw:
-            self._draw_explorer()
+        return View(rows)

@@ -1,3 +1,7 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from Tode.utils import Action
 
 
 class Keybind():
@@ -46,3 +50,5 @@ class Keybind():
 
     def __str__(self) -> str:
         return self.keybind
+
+type Keybinds = dict[Keybind | str, Action]

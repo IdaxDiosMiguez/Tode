@@ -21,3 +21,6 @@ class Size:
     def __post_init__(self):
         self.width = max(self.width, 1)
         self.height = max(self.height, 1)
+
+
+class Action: ...
