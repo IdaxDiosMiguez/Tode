@@ -4,7 +4,6 @@ import re
 import os
 import sys
 import tty
-import shutil
 import termios
 
 from Tode.utils import ANSI
@@ -32,6 +31,10 @@ class LinuxDriver(Driver):
         self._cursor_pos: tuple[int, int] = (1, 1)
 
         self._data: str = ""
+
+    @property
+    def fileno(self) -> int:
+        return self._fileno
 
     @classmethod
     def _patch_lflag(cls, attrs: int) -> int:
@@ -149,5 +152,5 @@ class LinuxDriver(Driver):
     def get_cursor_pos(self) -> tuple[int, int]:
         return self._cursor_pos
 
-    def get_terminal_size(self) -> tuple[int, int]:
-        return shutil.get_terminal_size()
+    def get_terminal_size(self) -> os.terminal_size:
+        return os.get_terminal_size()
