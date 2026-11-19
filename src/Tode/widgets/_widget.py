@@ -1,27 +1,32 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from Tode.app import Tode
+    from Tode.core import Focus
+    from Tode.utils import Action
+    from Tode.utils import Keybinds
 
-from abc import abstractmethod
-
-from Tode.core import Bindable
-
-from Tode.utils import Size
-from Tode.utils import Coord
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 
-class Widget(Bindable):
+@dataclass(slots=True)
+class View:
+    """What a widget looks like right now: one string per row of its region."""
 
-    def __init__(self, app: Tode, position: Coord, size: Size | None = None) -> None:
-        super().__init__()
-        self.terminal = app.terminal
-        self.is_active = False
-        self.to_draw = False
-        self.draw_once = True
+    lines: list[str]
+    cursor: tuple[int, int] | None = None   # (col, row) inside the region, 1-based. None = hidden
 
-        self.size = Size(1, 1) if (size is None) else size
-        self.position = position
+
+class Widget(ABC):
+
+    KEYBINDS: Keybinds = {}
+    focus: Focus
+
+    def keymap(self, key: str) -> Action | None:
+        return self.KEYBINDS.get(key)
 
     @abstractmethod
-    def render(self):...
+    def update(self, action: Action) -> Action | None: ...
+
+    @abstractmethod
+    def view(self, focused: bool) -> View: ...

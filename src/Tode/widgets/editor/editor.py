@@ -1,32 +1,26 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from Tode.app import Tode
-    from Tode.buffer._buffer import Buffer
+    from pathlib import Path
 
-from enum import Enum, auto
+from Tode.widgets._widget import Widget, View
+
+from Tode.utils import KEY
+from Tode.utils import ANSI
+from Tode.utils import Coord
+from Tode.utils import Color
+from Tode.utils import Keybind
+from Tode.utils import Keybinds
+
+from Tode.core import Focus
+from Tode.core import Resize, OpenFile
+
+from .piece_table import PieceTable
 
 from .viewport import Viewport
 from .gutter import Gutter
 from .status_bar import StatusBar
-
-from Tode.widgets._widget import Widget
-
-from Tode.utils import ANSI
-from Tode.utils import KEY
-from Tode.utils import Keybind
-from Tode.utils import Size
-from Tode.utils import Coord
-from Tode.utils import Color
-
-from . import actions
-
-
-class Direction(Enum):
-    UP    = auto()
-    DOWN  = auto()
-    LEFT  = auto()
-    RIGHT = auto()
+from .actions import *
 
 
 _DELTAS = {
@@ -36,53 +30,46 @@ _DELTAS = {
     Direction.RIGHT: (0, 1),
 }
 
-
 class Editor(Widget):
 
-    def __init__(self, app: Tode, buffer: Buffer, position: Coord, size: Size | None = None):
-        super().__init__(app=app, size=size, position=position)
+    KEYBINDS: Keybinds = {
+        ANSI.ARROW_UP: Move(Direction.UP),
+        ANSI.ARROW_DOWN:  Move(Direction.DOWN),
+        ANSI.ARROW_LEFT: Move(Direction.LEFT),
+        ANSI.ARROW_RIGHT: Move(Direction.RIGHT),
 
-        self.buffer     = buffer
+        KEY.ENTER: InsertNewLine(),
+        KEY.BACKSPACE: DeleteChar(),
 
-        self.cursor     = Coord(1, 1)
-        self.viewport   = Viewport(self.terminal, bottom=1, left=self.position.col)
+        Keybind("CTRL+S"): Save(),
+    }
+
+    def __init__(self, path: Path, cursor: Coord | None = None) -> None:
+        self.buffer = PieceTable(path)
+        self.scroll = Viewport()
+        self.cursor = cursor or Coord(1, 1)
+
+        self.focus  = Focus.EDITOR
+
         self.gutter     = Gutter()
         self.status_bar = StatusBar("MAIN", self.buffer.path.name)
-
-        self.to_draw   = True
-        self.draw_once = False
-        self.is_active = True
 
         self.bg_color = Color("#282828").to_ansi(background=True)
         self.fg_color = Color("#e5e7eb").to_ansi(background=False)
 
-        self._setup_keybinds()
+    def keymap(self, key):
+        if (action := super().keymap(key)) is not None:
+            return action
 
-    def _setup_keybinds(self):
-        # Arrow binds
-        self.bind(ANSI.ARROW_UP,     self._move, Direction.UP)
-        self.bind(ANSI.ARROW_DOWN,   self._move, Direction.DOWN)
-        self.bind(ANSI.ARROW_LEFT,   self._move, Direction.LEFT)
-        self.bind(ANSI.ARROW_RIGHT,  self._move, Direction.RIGHT)
+        if len(key) == 1 and key.isprintable():
+            return InsertChar(key)
 
-        self.bind(ANSI.CTRL_UP,      self.move_block_up)
-        self.bind(ANSI.CTRL_DOWN,    self.move_block_down)
-        self.bind(ANSI.CTRL_LEFT,    self.move_word_left)
-        self.bind(ANSI.CTRL_RIGHT,   self.move_word_right)
+        return None
 
-        # Char/Enter/Backspace
-        self.bind(KEY.CHAR,          self._insert_char)
-        self.bind(KEY.BACKSPACE,     self._delete_char)
-        self.bind(KEY.ENTER,         self._insert_newline)
+    # --- update -----------------------------------------------------------
 
-        self.bind(Keybind("CTRL+S"), self._save_file)
-
-    def _save_file(self):
-        self.buffer.save()
-
-    def _move(self, direction: Direction):
+    def _move(self, direction):
         lines = self.buffer.get_lines()
-        old_row, old_offset = self.cursor.row, self.viewport.offset
 
         d_row, d_col = _DELTAS[direction]
         row = max(1, min(self.cursor.row + d_row, max(1, len(lines))))
@@ -91,150 +78,84 @@ class Editor(Widget):
         self.cursor.row = row
         self.cursor.col = max(1, min(self.cursor.col + d_col, len(line) + 1))
 
-        height = self.viewport.visible_height
+        self.scroll.scroll_to(self.cursor.row)
 
-        if self.cursor.row - 1 < self.viewport.offset:
-            self.viewport.offset = self.cursor.row - 1
-
-        elif self.cursor.row > self.viewport.offset + height:
-            self.viewport.offset = self.cursor.row - height
-
-        if self.cursor.row != old_row or self.viewport.offset != old_offset:
-            self.to_draw = True
-
-    def _move_to(self, row: int, col: int) -> None:
-        self.cursor.row = row
-        self.cursor.col = col
-        self.viewport.scroll_to(row)
-        self.to_draw = True
-
-    def move_word_right(self) -> None:
-        lines = self.buffer.get_lines()
-        row = self.cursor.row
-        line = lines[row - 1] if row <= len(lines) else ""
-        idx = self.cursor.col - 1
-
-        if idx >= len(line):
-            if row < len(lines):
-                self._move_to(row + 1, 1)
-            return
-
-        self._move_to(row, actions.next_word(line, idx) + 1)
-
-    def move_word_left(self) -> None:
-        lines = self.buffer.get_lines()
-        row = self.cursor.row
-        idx = self.cursor.col - 1
-
-        if idx <= 0:
-            if row > 1:
-                self._move_to(row - 1, len(lines[row - 2]) + 1)
-            return
-
-        self._move_to(row, actions.prev_word(lines[row - 1], idx) + 1)
-
-    def move_block_down(self) -> None:
-        lines = self.buffer.get_lines()
-        if lines:
-            self._move_to(actions.next_block(lines, self.cursor.row - 1) + 1, 1)
-
-    def move_block_up(self) -> None:
-        lines = self.buffer.get_lines()
-        if lines:
-            self._move_to(actions.prev_block(lines, self.cursor.row - 1) + 1, 1)
-
-    def _insert_char(self, char: str) -> None:
-        offset = self.buffer.get_offset(self.cursor)
-        self.buffer.insert(offset, char)
-        self.cursor.col += 1
-
-        self.to_draw = True
-
-    def _insert_newline(self) -> None:
-        offset = self.buffer.get_offset(self.cursor)
-        self.buffer.insert(offset, "\n")
+    def _insert_newline(self):
+        self.buffer.insert(self.buffer.get_offset(self.cursor), "\n")
 
         self.cursor.row += 1
         self.cursor.col = 1
-        self.viewport.scroll_to(self.cursor.row)
-
-        self.to_draw = True
+        self.scroll.scroll_to(self.cursor.row)
 
     def _delete_char(self):
-
-        if (self.cursor.row == 1) and (self.cursor.col == 1):
-            return
-
         offset = self.buffer.get_offset(self.cursor)
 
         if offset <= 0:
             return
 
-        buffer_lines = self.buffer.get_lines()
+        lines = self.buffer.get_lines()
 
         if self.cursor.col > 1:
-            self.buffer.delete(offset - 1, 1)
             self.cursor.col -= 1
 
         elif self.cursor.row > 1:
-            prev_row_idx = self.cursor.row - 2
-            prev_line_len = len(buffer_lines[prev_row_idx])
-
-            self.buffer.delete(offset - 1, 1)
-
             self.cursor.row -= 1
-            self.cursor.col = prev_line_len + 1
+            self.cursor.col = len(lines[self.cursor.row - 1]) + 1
 
-        self.to_draw = True
+        self.buffer.delete(offset - 1, 1)
+        self.scroll.scroll_to(self.cursor.row)
 
-    def _draw_lines(self, lines: list[str]):
-        visible = lines[self.viewport.offset : self.viewport.offset + self.viewport.visible_height]
+    def _open_file(self, path):
+        self.buffer = PieceTable(path)
+        self.cursor = Coord(1, 1)
+        self.scroll.offset = 0
 
-        self.terminal.write(self.bg_color)
+    def update(self, action):
+        match action:
+            case Move(direction): self._move(direction)
 
-        for row, line in enumerate(visible, 1):
-            abs_row = self.viewport.offset + row
-            is_current = abs_row == self.cursor.row
-            number = self.cursor.row if is_current else abs(abs_row - self.cursor.row)
+            case InsertChar(ch):
+                self.buffer.insert(self.buffer.get_offset(self.cursor), ch)
+                self.cursor.col += 1
+
+            case InsertNewLine(): self._insert_newline()
+            case DeleteChar():    self._delete_char()
+
+            case Save(): self.buffer.save()
+
+            case OpenFile(path): self._open_file(path)
+
+            case Resize(size):
+                self.scroll.resize(size)
+                self.scroll.scroll_to(self.cursor.row)
+
+        return None
+
+    # --- view -------------------------------------------------------------
+
+    def view(self, focused: bool) -> View:
+        lines = self.buffer.get_lines()
+        top, height = self.scroll.offset, self.scroll.visible_height
+        visible = lines[top : top + height]
+
+        rows = []
+
+        for row, line in enumerate(visible, top + 1):
+            is_current = row == self.cursor.row
+            number = row if is_current else abs(row - self.cursor.row)
 
             gutter = self.gutter.format(number, len(lines), is_current)
+            text = line[: self.scroll.visible_width - self.gutter.len]
 
-            self.terminal.move_to(1 + self.position.col, row)
-            self.terminal.write(
-                f"{gutter}"
-                f"{self.fg_color}{line[:self.viewport.visible_width - self.gutter.len]}{ANSI.ERASE_LINE}{ANSI.CLEAR_FOREGROUND}"
-            )
+            rows.append(f"{self.bg_color}{gutter}{self.fg_color}{text}{ANSI.ERASE_LINE}{ANSI.CLEAR_STYLE}")
 
-        for row in range(len(visible) + 1, self.viewport.visible_height + 1):
-            self.terminal.move_to(1 + self.position.col, row)
-            self.terminal.write(f"▍{ANSI.ERASE_LINE}")
+        rows += [f"{self.bg_color}▍{ANSI.ERASE_LINE}{ANSI.CLEAR_STYLE}"] * (height - len(visible))
 
-        self.terminal.write(ANSI.CLEAR_BACKGROUND)
+        rows.append(self.status_bar.format(self.scroll.width, self.cursor, self.buffer.edited))
 
-    def render(self):
-        if self.viewport.resize():
-            self.viewport.scroll_to(self.cursor.row)
-            self.to_draw = True
+        cursor = None
 
-        lines = self.buffer.get_lines()
+        if focused:
+            cursor = (self.cursor.col + self.gutter.width(len(lines)), self.cursor.row - top)
 
-        self.terminal.write(ANSI.HIDE_CURSOR)
-
-        if self.to_draw:
-            self._draw_lines(lines)
-            self.to_draw = False
-
-        self.terminal.move_to(1 + self.position.col, self.viewport.visible_height + 1)
-        self.terminal.write(
-            self.status_bar.format(
-                self.viewport.width - self.position.col,
-                self.cursor,
-                self.buffer.edited
-            )
-        )
-
-        self.terminal.write(ANSI.SHOW_CURSOR)
-        self.terminal.move_to(
-            self.cursor.col + self.position.col + self.gutter.width(len(lines)),
-            self.cursor.row - self.viewport.offset,
-        )
+        return View(rows, cursor)

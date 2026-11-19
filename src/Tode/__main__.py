@@ -4,6 +4,9 @@ import argparse
 
 from pathlib import Path
 
+from Tode.widgets import Editor
+from Tode.widgets import Explorer
+
 from Tode.app import Tode
 
 
@@ -32,7 +35,14 @@ def main():
     args = get_args()
     path = get_path(args.path)
 
-    tode = Tode(path=path)
+    editor = Editor(path=path)
+    explorer = Explorer(root=path if path.is_dir() else path.parent)
+
+    tode = Tode()
+
+    tode.add_widget(explorer)
+    tode.add_widget(editor)
+
     tode.run()
 
 

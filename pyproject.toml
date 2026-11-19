@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Tode"
-version = "0.0.1"
+version = "1.0.0"
 description = "A modern, highly customizable, terminal text editor. Familiar keybindings and future IDE-level features. Perfect for beginners!"
 readme = "README.md"
 requires-python = ">=3.10"
