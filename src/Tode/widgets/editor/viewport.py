@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from Tode.drivers._driver import Driver
     from os import terminal_size
 
 

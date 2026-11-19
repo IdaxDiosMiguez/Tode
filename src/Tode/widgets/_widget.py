@@ -11,10 +11,8 @@ from dataclasses import dataclass
 
 @dataclass(slots=True)
 class View:
-    """What a widget looks like right now: one string per row of its region."""
-
     lines: list[str]
-    cursor: tuple[int, int] | None = None   # (col, row) inside the region, 1-based. None = hidden
+    cursor: tuple[int, int] | None = None
 
 
 class Widget(ABC):

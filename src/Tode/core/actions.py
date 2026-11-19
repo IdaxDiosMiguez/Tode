@@ -10,7 +10,7 @@ from Tode.utils import Action
 
 @dataclass(frozen=True, slots=True)
 class Key(Action):
-    key: str            # one raw key, not yet interpreted
+    key: str
 
 @dataclass(frozen=True, slots=True)
 class Resize(Action):

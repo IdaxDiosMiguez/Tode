@@ -22,7 +22,7 @@ from Tode.utils import split_keys
 @dataclass(slots=True)
 class Frame:
     rows: list[str]
-    cursor: tuple[int, int] | None = None   # (col, row) on screen. None = hidden
+    cursor: tuple[int, int] | None = None
 
 
 class Tode:
@@ -42,7 +42,6 @@ class Tode:
         self._prev: list[str] = []
 
     def _layout(self) -> list[tuple[Focus, int, int]]:
-        """Where each widget goes, left to right: (focus, first column, width)."""
         layout, col = [], 1
 
         if Focus.EXPLORER in self.model.widgets:
@@ -54,11 +53,10 @@ class Tode:
 
         return layout
 
-    def _resize(self, size):
+    def _resize(self, size: terminal_size):
         self.model.size = size
-        self._prev = []             # repaint everything on the next draw
+        self._prev = []
 
-        # each widget is told the size of *its* region, not the whole terminal
         for focus, _col, width in self._layout():
             self._send(self.model.widgets[focus], Resize(terminal_size((width, size.lines))))
 
@@ -82,7 +80,7 @@ class Tode:
             view = self.model.widgets[focus].view(focused=self.model.focus is focus)
 
             for i, line in enumerate(view.lines[:height]):
-                rows[i] += f"{ANSI.ESC}[{col}G{line}"       # jump to the widget's column
+                rows[i] += f"{ANSI.ESC}[{col}G{line}"
 
             if view.cursor is not None:
                 cursor = (view.cursor[0] + col - 1, view.cursor[1])
@@ -150,11 +148,8 @@ class Tode:
             while self.model.running:
                 self._update(await self.queue.get())
 
-                # handle everything already queued (e.g. a paste) before drawing once
                 while self.model.running and not self.queue.empty():
                     self._update(self.queue.get_nowait())
-
-                # for c in cmds: self._spawn(c)
 
                 if self.model.running:
                     self._draw()

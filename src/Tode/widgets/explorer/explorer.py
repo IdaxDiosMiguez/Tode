@@ -1,3 +1,8 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .file_system import _Node
+
 from pathlib import Path
 
 from Tode.widgets._widget import Widget, View
@@ -80,7 +85,7 @@ class Explorer(Widget):
             f"{self.bg_explorer}{'▔' * w}{ANSI.CLEAR_STYLE}",
         ]
 
-    def _entry(self, node, depth: int, selected: bool) -> str:
+    def _entry(self, node: _Node, depth: int, selected: bool) -> str:
         if node.is_dir:
             icon = f"{FOLDER.OPEN} " if node.expanded else f"{FOLDER.CLOSED} "
         else:
